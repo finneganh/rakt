@@ -1,16 +1,18 @@
 #! /usr/bin/env node
 require('babel-register')({
   "presets": [ "es2015", "stage-0", "react" ],
-  "plugins": [ [require.resolve("./babel.js"), { server: true }], "transform-decorators-legacy" ]  
+  "plugins": [ [require.resolve("./babel.js"), { server: true }], "transform-decorators-legacy" ]
 })
 
+let path = require('path')
+
 let server = require('./server').default
-let serve = server({ entry: require.resolve('../../rakt-example/src/index.js') })
+let serve = server({ entry: require.resolve(path.resolve(process.argv[2])) })
 
 serve.listen(3000, err => {
   if(err){
-    return console.error(err)  
+    return console.error(err)
   }
   console.log('listening on', 3000)
-  
+
 })

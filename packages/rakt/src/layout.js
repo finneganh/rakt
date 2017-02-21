@@ -10,7 +10,7 @@ export default class Layout extends React.Component{
     let { css, ids } = renderStatic(() => content)
     let { head } = Helmet.rewind()
     return <html lang="en-us">
-      <head>        
+      <head>
         <meta name="theme-color" content="#db5945" />
         {/* <link rel="manifest" href="/manifest.webmanifest" /> --> */}
         <link rel="shortcut icon" href="/favicon.ico" />
@@ -27,7 +27,7 @@ export default class Layout extends React.Component{
         <noscript id='rakt-ssr' data-ssr={JSON.stringify(hydrate)}/>
         {assets
           .filter(path => path.endsWith('.js'))
-          .map(path => <script key={path} src={path} />)}
+          .map(path => <script key={path} src={'/' + path} />)}
         <script dangerouslySetInnerHTML={{ __html: `window.__init()` }} />
       </body>
     </html>

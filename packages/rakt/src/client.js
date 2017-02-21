@@ -11,17 +11,16 @@ function dehydrate(name){
   return JSON.parse(document.getElementById(`rakt-${name}`).dataset[name])
 }
 
-
 rehydrate(dehydrate('cssids'))
 
 let App = require($ENTRY)
 App = App.default || App
 
-// do anything else critical here 
-// service worker registration etc 
-// if ssr was off, you could start right away 
+// do anything else critical here
+// service worker registration etc
+// if ssr was off, you could start right away
 
-window.__init = () => 
+window.__init = () =>
   render(<BrowserRouter>
     <Rakt cache={dehydrate('ssr')}
       routes={dehydrate('routes')}>

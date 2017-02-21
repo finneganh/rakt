@@ -3,6 +3,7 @@ import express from 'express'
 import path from 'path'
 import parseModules from './parseModules'
 import parseRoutes from './parseRoutes'
+import walkTree from './walkTree'
 import webpack from 'webpack'
 import 'isomorphic-fetch'
 
@@ -18,14 +19,14 @@ import hotware from 'webpack-hot-middleware'
 
 import Helmet from 'react-helmet'
 
-// let oldRender = Route.render 
+// let oldRender = Route.render
 
-// // when you're not applying babel plugin on server files 
+// // when you're not applying babel plugin on server files
 // Route.render = (props) => {
 //   let { module, match, absolute } = props
 //   console.log({absolute})
 //   if(module && match){
-    
+
 //     let Module = require(absolute)
 //     console.log('sadasdasd')
 //     return oldRender({...props, match, Module})
@@ -33,24 +34,63 @@ import Helmet from 'react-helmet'
 //   return oldRender(props)
 // }
 
+function getInitialModsFromTree({ rootElement, rootContext = {} }, fetchRoot = true) {
+  const mods = [];
 
+  walkTree(rootElement, rootContext, (element, instance, context) => {
+    const skipRoot = !fetchRoot && (element === rootElement);
+    const Component = element.type;
+
+    // look for a Data element
+    if (instance && typeof Component.mod === 'function' && !skipRoot) {
+      mods.push({ mod: Component.mod, modhash: Component.modhash, element, context })
+      return false;
+    }
+  });
+
+  return mods;
+}
+
+function primeApiCache(req, cache, errors, rootElement, rootContext = {}, fetchRoot = true) {
+  let mods = getInitialModsFromTree({ rootElement, rootContext }, fetchRoot);
+  if (!mods.length) return Promise.resolve();
+
+  const mappedMods = mods.map(({ mod, modhash, element, context }) =>  {
+    return (new Promise((resolve, reject) => {
+      mod({req, done: (err, data) => {
+        const cacheKey = `${modhash}:${req.url}`
+        if (err) {
+          errors[cacheKey] = err;
+        } else {
+          cache[cacheKey] = data;
+        }
+
+        resolve();
+      }})
+    })).then(_ => primeApiCache(req, cache, errors, element, context, false));
+  });
+
+  return Promise.all(mappedMods).then(_ => null);
+}
 
 export default function server({ entry }){
 
   let App = require(entry)
   App = App.default || App
 
-  
+
   let modules = parseModules(entry)
   let routes = parseRoutes(entry)
-  let compiler = webpack({ 
+
+  let compiler = webpack({
     devtool: "source-map",
     entry: [entry, require.resolve('./client.js')],
     output: {
       path: __dirname, // todo - ?
+      publicPath: '/',
       filename: "[name].bundle.js",
       chunkFilename: "[name].chunk.js"
-    },  
+    },
     module: {
       rules: [
         {
@@ -60,19 +100,19 @@ export default function server({ entry }){
           query: {
             "presets": [ "es2015", "stage-0", "react" ],
             "plugins": [ require.resolve("./babel.js"), require.resolve("./babel2.js"), "transform-decorators-legacy" ]
-          }  
+          }
         },
         {
           test: /\.js$/,
           loader: require.resolve('./loader.js'),
           query: {
             entry
-          } 
+          }
         }
-      ]    
+      ]
     }
   })
-  // webpack dev server 
+  // webpack dev server
 
   const app = express()
 
@@ -87,71 +127,53 @@ export default function server({ entry }){
   app.use(favicon('./favicon.png'));
 
   app.use('/api/:mod/*', (req, res, next ) => {
-    // todo - feed the matches that got here, since the url isn't reliable 
+    // todo - feed the matches that got here, since the url isn't reliable
     let mod = require(modules[req.params.mod])
     mod = (mod.default ? mod.default : mod)
     if(mod.mod){
       // todo - deep?
       mod.mod({
-        req, res, next, 
+        req, res, next,
         done: (err, data) => err ? next(err) : res.send(data)
       })
     }
     else {
       next(404)
-    }          
+    }
   })
 
   app.get('*', (req, res, next) => {
     // how to ignore
-    // fetch data 
+    // fetch data
 
-    let matches = routes.filter(({ path, exact, strict }) => 
-      matchPath(req.url, path, { exact, strict }))  
+    let matches = routes.filter(({ path, exact, strict }) =>
+      matchPath(req.url, path, { exact, strict }))
 
-    let fetchers = matches    
-      .filter(x => {
-        let m = require(x.module)
-        m = m.default || m 
-        return !!m.mod 
-      })
+    const cache = {};
+    const errors = {};
+    const context = {};
 
-    function andThen(err, data){
-      
-      let cache = {}
-      data.forEach(x => {
-        cache[`${x.hash}:${req.url}`] = x.result
-      })
+    const site = (
+      <StaticRouter location={req.url} context={context}>
+        <Rakt cache={cache} errors={errors}>
+          <div>
+            <Helmet title="Home" />
+            <App />
+          </div>
+        </Rakt>
+      </StaticRouter>
+    )
 
-      let context = {}
+    primeApiCache(req, cache, errors, site).then(() => {
       let html = renderToString(
-        <Layout assets={[ 'main.bundle.js', ...matches.map(x => `${x.hash}.chunk.js`)]} 
-          routes={routes.map(({module, ...rest}) => rest)} 
+        <Layout assets={[ 'main.bundle.js', ...matches.map(x => `${x.hash}.chunk.js`)]}
+          routes={routes.map(({module, ...rest}) => rest)}
           hydrate={cache}>
-          <StaticRouter location={req.url} context={context}>
-            <Rakt cache={cache}>
-              <div>
-                <Helmet title="Home" />
-                <App />  
-              </div>
-            </Rakt>        
-          </StaticRouter>
+          {site}
         </Layout>)
       res.type('html')
-      res.send('<!doctype html>' + html)    
-    }
-
-    let promises = fetchers    
-      .map(x => {
-        return fetch(`http://localhost:3000/api/${x.hash}${req.url}`)
-          .then(x => x.json())
-      })
-
-    Promise.all(promises).then(results => 
-      andThen(undefined, matches.map((x, i) => 
-        ({...x, result: results[i]}))), 
-      andThen)    
-    
+      res.send('<!doctype html>' + html)
+    });
   })
   return app
   // when do we 404?

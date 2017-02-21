@@ -1,21 +1,21 @@
-// copied from ratpack 
+// copied from ratpack
 
 
 import webpack from 'webpack'
 import path from 'path'
 
 export function webpackify(filepath, options = {}) {
-  
+
   let webpackCompiler = webpack({
     devtool: options.production ? false : (options.devtool || 'cheap-module-source-map'),
-    entry: [ 
-      ((options.reload !== false) || (options.production !== true) ) ? 
-        require.resolve('react-dev-utils/webpackHotDevClient.js') : 
-        undefined, 
+    entry: [
+      ((options.reload !== false) || (options.production !== true) ) ?
+        require.resolve('react-dev-utils/webpackHotDevClient.js') :
+        undefined,
       options.stats ? require.resolve('./stats.js') : undefined,
-      require.resolve('./polyfills'), 
+      require.resolve('./polyfills'),
       options.offline ? require.resolve('./offline-plugin-runtime.js') : undefined,
-      filepath 
+      filepath
     ].filter(x => !!x),
     output: {
       path: path.join(__dirname, '../public'),
@@ -26,8 +26,8 @@ export function webpackify(filepath, options = {}) {
       hints: false
     },
     module: {
-      rules: [ 
-        ...(options.rules || []).map(({ loader, files, options }) => ({ loader: require.resolve(loader), options, test: glob2regexp(files || '*') })), 
+      rules: [
+        ...(options.rules || []).map(({ loader, files, options }) => ({ loader: require.resolve(loader), options, test: glob2regexp(files || '*') })),
         {
           enforce: 'pre',
           test: /\.(js|jsx)$/,
@@ -36,7 +36,7 @@ export function webpackify(filepath, options = {}) {
           options: {
             configFile: path.join(__dirname, '../resources/.eslintrc')
           }
-        }, 
+        },
         {
           exclude: [
             /\.html$/,
@@ -50,21 +50,21 @@ export function webpackify(filepath, options = {}) {
             limit: 10000,
             name: 'static/media/[name].[hash:8].[ext]'
           }
-        }, 
+        },
         {
           test: /\.js$/,
           exclude: /node_modules/,
           loader: require.resolve('babel-loader'),
           options: {
-            'presets': [ 
-              [ require('babel-preset-env'), { 
+            'presets': [
+              [ require('babel-preset-env'), {
                 'targets': {
                   'browsers': [ 'last 2 versions', 'safari >= 7' ]
-                }, 
-                modules: false 
-              } ], 
-              require('babel-preset-stage-0'), 
-              require('babel-preset-react'),              
+                },
+                modules: false
+              } ],
+              require('babel-preset-stage-0'),
+              require('babel-preset-react'),
               ...(options.babel || {}).presets || []
             ],
             'plugins': [
@@ -79,23 +79,23 @@ export function webpackify(filepath, options = {}) {
                 { 'pragma': options.jsx } ] : undefined,
               require('babel-plugin-transform-decorators-legacy').default,
               require('babel-plugin-transform-react-require').default,
-              
+
               ...(options.babel || {}).plugins || []
             ].filter(x => !!x),
             cacheDirectory: false
           }
-        }, 
+        },
         {
           test: /\.css$/,
           use: [
-            require.resolve('style-loader'), 
+            require.resolve('style-loader'),
             {
               loader: require.resolve('css-loader'),
-              options: { importLoaders: 1 } 
-            }, 
-            require.resolve('postcss-loader')  // options in the plugins section below             
+              options: { importLoaders: 1 }
+            },
+            require.resolve('postcss-loader')  // options in the plugins section below
           ]
-        }, 
+        },
         // {
         //   test: /\.json$/,
         //   loader: require.resolve('json-loader')
@@ -106,7 +106,7 @@ export function webpackify(filepath, options = {}) {
           query: {
             name: 'static/media/[name].[hash:8].[ext]'
           }
-        } 
+        }
       ]
     },
     resolve: {
@@ -146,7 +146,7 @@ export function webpackify(filepath, options = {}) {
       tls: 'empty'
     }
   })
-  
+
   let webpackServer = new WebpackDevServer(webpackCompiler, {
     // todo - windows
     contentBase: [ options.public ? path.join(path.dirname(filepath), options.public) : '', path.join(path.dirname(filepath), 'public'), path.join(__dirname, '../public') ].filter(x => !!x),
@@ -154,12 +154,12 @@ export function webpackify(filepath, options = {}) {
     compress: true,
     proxy: options.proxy || {},
         // setup()
-        // staticOptions 
+        // staticOptions
 
-    quiet: true,      
-    stats: { colors: false }  
+    quiet: true,
+    stats: { colors: false }
   })
-    // this is to workaround some weird bug where webpack keeps the first loaded file 
+    // this is to workaround some weird bug where webpack keeps the first loaded file
     // also makes it look cool ha
   let h = hash(filepath, filepath.length)+ ''
   let port = options.port || (3000 + parseInt(h.substr(h.length - 4), 10))
